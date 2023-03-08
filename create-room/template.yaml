@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  otter-api
+
+  Sample SAM Template for otter-api
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  createRoomFunc:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: ./
+      Handler: app.lambdaHandler
+      Runtime: nodejs18.x
+      Architectures:
+        - x86_64
+      # Events:
+      #   OtterAPIGateway:
+      #     Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+      #     Properties:
+      #       Path: /rooms
+      #       Method: post
+    # getRoomFunc:
+    #   Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    #   Properties:
+    #     CodeUri: get-room/
+    #     Handler: app.lambdaHandler
+    #     Runtime: nodejs18.x
+    #     Architectures:
+    #       - x86_64
+    # Events:
+    #   OtterAPIGateway:
+    #     Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+    #     Properties:
+    #       Path: /rooms
+    #       Method: get
+    # dynamoWatcher:
+    #   Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    #   Properties:
+    #     CodeUri: dynamo-watcher/
+    #     Handler: app.lambdaHandler
+    #     Runtime: nodejs18.x
+    #     Architectures:
+    #       - x86_64
+    Metadata: # Manage esbuild properties
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: 'es2020'
+        Sourcemap: true
+        EntryPoints:
+          - app.ts
