@@ -1,7 +1,6 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
-import { getNewStatusOnConnect, getNewStatusOnDisconnect } from './utils';
 
 const TABLE_NAME = 'rooms';
 const REGION = process.env.AWS_REGION || 'us-east-2';
