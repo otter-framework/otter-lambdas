@@ -44,7 +44,10 @@ export const handler = async function (event) {
   }
   const callbackAPI = new ApiGatewayManagementApiClient({
     endpoint:
-      event.requestContext.domainName + "/" + event.requestContext.stage,
+      "https://" +
+      event.requestContext.domainName +
+      "/" +
+      event.requestContext.stage,
   });
 
   const message = JSON.parse(event.body).message;
