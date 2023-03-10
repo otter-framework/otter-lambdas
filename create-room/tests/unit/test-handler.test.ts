@@ -4,8 +4,8 @@ import { lambdaHandler } from '../../app';
 describe('Unit test for app handler', function () {
   it('verifies successful response', async () => {
     const event: APIGatewayProxyEvent = {
-      httpMethod: 'get',
-      body: '',
+      httpMethod: 'post',
+      body: '{"uniqueName": "chrisRoom"}',
       headers: {},
       isBase64Encoded: false,
       multiValueHeaders: {},
@@ -17,7 +17,7 @@ describe('Unit test for app handler', function () {
         accountId: '123456789012',
         apiId: '1234',
         authorizer: {},
-        httpMethod: 'get',
+        httpMethod: 'post',
         identity: {
           accessKey: '',
           accountId: '',
@@ -41,12 +41,12 @@ describe('Unit test for app handler', function () {
           userAgent: '',
           userArn: '',
         },
-        path: '/hello',
+        path: '/rooms',
         protocol: 'HTTP/1.1',
         requestId: 'c6af9ac6-7b61-11e6-9a41-93e8deadbeef',
         requestTimeEpoch: 1428582896000,
         resourceId: '123456',
-        resourcePath: '/hello',
+        resourcePath: '/rooms',
         stage: 'dev',
       },
       resource: '',
@@ -59,7 +59,7 @@ describe('Unit test for app handler', function () {
     const roomResource = JSON.parse(result.body);
 
     expect(roomResource.status).toBe('open');
-    expect(roomResource.unique_name).toBe('');
+    expect(roomResource.unique_name).toBe('chrisRoom');
     expect(roomResource.id).toMatch(/rm_*/);
   });
 });

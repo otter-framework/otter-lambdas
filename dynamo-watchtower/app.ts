@@ -1,4 +1,4 @@
-import { DynamoDBStreamEvent } from 'aws-lambda';
+import { DynamoDBRecord, DynamoDBStreamEvent } from 'aws-lambda';
 import { AttributeValue, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand, GetCommand, UpdateCommandInput } from '@aws-sdk/lib-dynamodb';
@@ -32,8 +32,10 @@ const getRoomStatusById = async (id: string): Promise<string | null> => {
     TableName: TABLE_NAME,
     Key: { id },
   };
+  console.log('inside getRoomStatusById, params:', params);
 
   const dataFromDatabase = await dynamo.send(new GetCommand(params));
+  console.log('Item: ', dataFromDatabase.Item);
   const roomResource = dataFromDatabase.Item ? dataFromDatabase.Item : null;
 
   if (roomResource && roomResource.status) return roomResource.status;
@@ -41,8 +43,18 @@ const getRoomStatusById = async (id: string): Promise<string | null> => {
   return null;
 };
 
+const extractRecordData = (record: DynamoDBRecord) => {
+  let dynamoDbRecord;
+  if (record.eventName === 'INSERT' || record.eventName === 'MODIFY') {
+    dynamoDbRecord = record.dynamodb!.NewImage!;
+  } else {
+    dynamoDbRecord = record.dynamodb!.OldImage!;
+  }
+
+  return unmarshall(dynamoDbRecord as Record<string, AttributeValue>);
+};
+
 export const lambdaHandler = async (event: DynamoDBStreamEvent): Promise<void> => {
-  let roomId: string;
   const record = event.Records[0];
 
   console.log('event: ', event);
@@ -51,21 +63,21 @@ export const lambdaHandler = async (event: DynamoDBStreamEvent): Promise<void> =
   console.log('Event name:', record.eventName);
   console.log('new image: ', record.dynamodb!.NewImage!);
   console.log('old image: ', record.dynamodb!.OldImage!);
-  const dynamoDbRecord = record.dynamodb!.NewImage!;
-  const recordData = unmarshall(dynamoDbRecord as Record<string, AttributeValue>);
 
+  const recordData = extractRecordData(record);
+  const { roomId } = recordData;
   // Guard clauses before talking with db
   if (record.eventName === 'INSERT') return;
-  if (!recordData.peerId) {
+  if (!roomId) {
     console.log('Database change does not have a room ID attach to it. Abort.');
     return;
   }
 
-  roomId = recordData.peerId;
   console.log('ROOM ID CAPTURED: ', roomId);
 
   try {
     const prevStatus = await getRoomStatusById(roomId);
+    console.log('prevStatus: ', prevStatus);
     if (!prevStatus) {
       console.log(`The status of the room ${roomId} is missing. Abort.`);
       return;

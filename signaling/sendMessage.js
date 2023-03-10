@@ -10,7 +10,9 @@ import {
   PostToConnectionCommand,
 } from "@aws-sdk/client-apigatewaymanagementapi";
 
-const TABLE_NAME = process.env.CONNECTION_TABLE;
+const TABLE_NAME =
+  process.env.table ||
+  "websocket-api-chat-app-tutorial-ConnectionsTable8000B8A1-8WK9U503WUBE"; // TODO: Remove hard coded table later
 const REGION = process.env.AWS_REGION || "us-east-2";
 const marshallOptions = {
   removeUndefinedValues: true, // false, by default.
@@ -52,17 +54,7 @@ export const handler = async function (event) {
 
   const message = JSON.parse(event.body).message;
 
-  if (message.type === "requestConnectionId") {
-    const connectionId = event.requestContext.connectionId;
-    const messageToSelf = {
-      type: "connectionId",
-      payload: connectionId,
-    };
-    await callbackAPI.send(
-      constructResponseCommand(connectionId, messageToSelf)
-    );
-    console.log("sent out my Peer Id to myself");
-  } else if (message.type === "joinOrCreate") {
+  if (message.type === "joinOrCreate") {
     const source = event.requestContext.connectionId;
     const destination = message.payload;
 
@@ -116,24 +108,26 @@ export const handler = async function (event) {
       } catch (E) {
         console.log(E);
       }
-    } else {
-      const messageToSelf = {
-        type: "roomId",
-        payload: `Room ${message.payload} created`,
-      };
-      await callbackAPI.send(constructResponseCommand(source, messageToSelf));
-      console.log("sent out message to myself that room was created line 107");
     }
   } else {
-    const source = event.requestContext.connectionId;
-
     if (message.type === "endConnection") {
-      const destination = message.payload;
-      await callbackAPI.send(constructResponseCommand(destination, message));
-      console.log("sent out message to the other peer line 120");
+      console.log("endConnection -- message payload: ", message.payload);
+      const targetItem = connections.Items.filter(
+        ({ roomId }) => roomId === message.payload
+      )[0]; // find row where roomId exists
+
+      console.log("targetItem:", targetItem);
+      const targetConnectionId = targetItem && targetItem.connectionId;
+      if (targetConnectionId) {
+        await callbackAPI.send(
+          constructResponseCommand(targetConnectionId, message)
+        );
+        console.log("sent out message to the other peer line 120");
+      }
       return { statusCode: 200 };
     }
 
+    const source = event.requestContext.connectionId;
     const targetItem = connections.Items.filter(
       ({ connectionId }) => connectionId === source
     )[0];

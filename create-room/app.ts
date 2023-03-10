@@ -1,7 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, ScanCommand, ScanCommandInput } from '@aws-sdk/lib-dynamodb';
 import { Room, RoomStatus, RoomConfig } from './types';
 import { generateRoomId, createErrorResponse } from './utils';
 
@@ -35,19 +35,72 @@ const createRoom = async (config: RoomConfig): Promise<Room> => {
   return roomResource;
 };
 
+const getRoomById = async (id: string): Promise<Record<string, any> | null> => {
+  const params = {
+    TableName: TABLE_NAME,
+    Key: { id },
+  };
+
+  const dataFromDatabase = await dynamo.send(new GetCommand(params));
+  return dataFromDatabase.Item ? dataFromDatabase.Item : null;
+};
+
+const getRoomByName = async (name: string): Promise<Record<string, any> | null> => {
+  console.log(name);
+  const params: ScanCommandInput = {
+    TableName: TABLE_NAME,
+    FilterExpression: '#unique = :name',
+    ExpressionAttributeValues: {
+      ':name': name,
+    },
+    ExpressionAttributeNames: { '#unique': 'unique_name' },
+  };
+
+  const dataFromDatabase = await dynamo.send(new ScanCommand(params));
+  const item = dataFromDatabase.Items ? dataFromDatabase.Items[0] : null;
+
+  return item;
+};
+
+const getRoomResource = async (uniqueIdentifier: string | undefined): Promise<Record<string, any> | null> => {
+  let roomResource = null;
+  if (uniqueIdentifier) {
+    if (uniqueIdentifier.startsWith('rm_')) {
+      roomResource = await getRoomById(uniqueIdentifier);
+    } else {
+      roomResource = await getRoomByName(uniqueIdentifier);
+    }
+  }
+
+  return roomResource;
+};
+
 export const lambdaHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  let roomResource;
   try {
     const config: RoomConfig = event.body ? JSON.parse(event.body) : {};
-    const roomResource = await createRoom(config);
+    const uniqueIdentifier = config.uniqueName;
+    // check whether the roomId/name exists or not
+    roomResource = await getRoomResource(uniqueIdentifier);
+    // create the room if it doesn't exist
+    if (!roomResource || roomResource.id === undefined) {
+      roomResource = await createRoom(config);
+    }
+
     return {
       statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST',
+      },
       body: JSON.stringify(roomResource),
     };
   } catch (err) {
     console.log(err);
     return {
       statusCode: 500,
-      body: JSON.stringify(createErrorResponse('Error when creating the new room. Please try again.')),
+      body: JSON.stringify(createErrorResponse('Error when getting or creating the new room. Please try again.')),
     };
   }
 };

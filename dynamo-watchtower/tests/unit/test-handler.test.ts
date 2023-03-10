@@ -6,9 +6,9 @@ describe('Unit test for app handler', function () {
     const event: DynamoDBStreamEvent = {
       Records: [
         {
-          eventName: 'REMOVE',
+          eventName: 'INSERT',
           dynamodb: {
-            NewImage: { peerId: { S: 'rm_xH-keatc0_' } },
+            NewImage: { roomId: { S: 'rm_5AMgkm9eMD' } },
           },
         },
       ],

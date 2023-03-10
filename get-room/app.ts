@@ -1,7 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { GetCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, ScanCommand, ScanCommandInput } from '@aws-sdk/lib-dynamodb';
 import { createErrorResponse } from './utils';
 
 const TABLE_NAME = 'rooms';
@@ -25,11 +25,43 @@ const getRoomById = async (id: string): Promise<Record<string, any> | null> => {
   return dataFromDatabase.Item ? dataFromDatabase.Item : null;
 };
 
+const getRoomByName = async (name: string): Promise<Record<string, any> | null> => {
+  console.log(name);
+  const params: ScanCommandInput = {
+    TableName: TABLE_NAME,
+    FilterExpression: '#unique = :name',
+    ExpressionAttributeValues: {
+      ':name': name,
+    },
+    ExpressionAttributeNames: { '#unique': 'unique_name' },
+  };
+
+  const dataFromDatabase = await dynamo.send(new ScanCommand(params));
+  const item = dataFromDatabase.Items ? dataFromDatabase.Items[0] : null;
+
+  return item;
+};
+
+const getRoomResource = async (uniqueIdentifier: string | undefined): Promise<Record<string, any> | null> => {
+  let roomResource = null;
+  if (uniqueIdentifier) {
+    if (uniqueIdentifier.startsWith('rm_')) {
+      roomResource = await getRoomById(uniqueIdentifier);
+    } else {
+      roomResource = await getRoomByName(uniqueIdentifier);
+    }
+  }
+
+  return roomResource;
+};
+
 export const lambdaHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   try {
+    console.log('pathParameters: ', event.pathParameters);
+    console.log('event: ', event);
     if (event.pathParameters && event.pathParameters.uniqueIdentifier) {
       const { uniqueIdentifier } = event.pathParameters;
-      const roomResource = await getRoomById(uniqueIdentifier);
+      const roomResource = await getRoomResource(uniqueIdentifier);
       if (roomResource) {
         return {
           statusCode: 200,
