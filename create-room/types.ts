@@ -3,16 +3,17 @@ export type RoomConfig = {
 };
 
 export type Room = {
-  id: string;
+  roomId: string;
   unique_name: string;
   created_at: string;
   updated_at: string;
-  status: RoomStatus;
+  status: string;
+  url: string;
 };
 
-export enum RoomStatus {
-  Open = 'open',
-  Closed = 'closed',
-  Occupied = 'occupied',
-  Full = 'full',
-}
+// export enum RoomStatus {
+//   Open = 'open',
+//   Closed = 'closed',
+//   Occupied = 'occupied',
+//   Full = 'full',
+// }
