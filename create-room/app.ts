@@ -2,10 +2,11 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { PutCommand, GetCommand, ScanCommand, ScanCommandInput } from '@aws-sdk/lib-dynamodb';
-import { Room, RoomStatus, RoomConfig } from './types';
+import { Room, RoomConfig } from './types';
 import { generateRoomId, createErrorResponse } from './utils';
+import jwt from 'jsonwebtoken';
 
-const TABLE_NAME = 'rooms';
+const TABLE_NAME = 'RoomCountsTable2301';
 const REGION = process.env.AWS_REGION || 'us-east-2';
 const marshallOptions = {
   removeUndefinedValues: true, // false, by default.
@@ -16,23 +17,68 @@ const dynamo = DynamoDBDocumentClient.from(client, {
   marshallOptions,
 });
 
-const createRoom = async (config: RoomConfig): Promise<Room> => {
-  const roomId = generateRoomId(); // create room id with length of 10
+const getSecret = async () => {
+  const params = {
+    TableName: 'APIKeyTable',
+    Key: { user: 'otter-admin' },
+  };
+
+  const dataFromDatabase = await dynamo.send(new GetCommand(params));
+  const secret = dataFromDatabase.Item?.apiKey;
+  return secret;
+};
+
+const getDomain = async () => {
+  const params = {
+    TableName: 'ConfigTable',
+    Key: { user: 'otter-admin' },
+  };
+
+  const dataFromDatabase = await dynamo.send(new GetCommand(params));
+  const domain = dataFromDatabase.Item?.domain;
+  return domain;
+};
+
+const generateToken = (key: string, roomId: string) => {
+  const token = jwt.sign(
+    {
+      data: roomId,
+    },
+    key,
+    { expiresIn: '48h' },
+  );
+  return token;
+};
+
+const constructRoomResource = async (config: RoomConfig, domainUrl: string) => {
+  const roomId = generateRoomId();
   const now = new Date();
   const utc = now.toUTCString();
-  const roomResource = {
-    id: roomId,
-    unique_name: config.uniqueName || '',
-    created_at: utc,
-    updated_at: utc,
-    status: RoomStatus.Open,
-  };
+  const secret = await getSecret();
+  if (!secret) {
+    return Promise.reject('Cannot generate room token.');
+  } else {
+    const token = generateToken(secret, roomId);
+    const url = domainUrl + '/otter-meet/' + (config.uniqueName || roomId) + `?token=${token}`;
+    const roomResource = {
+      roomId,
+      unique_name: config.uniqueName || '',
+      created_at: utc,
+      updated_at: utc,
+      status: 'open',
+      url,
+    };
+
+    return roomResource;
+  }
+};
+
+const createRoom = async (roomResource: Room) => {
   const params = {
     TableName: TABLE_NAME,
     Item: roomResource,
   };
   await dynamo.send(new PutCommand(params));
-  return roomResource;
 };
 
 const getRoomById = async (id: string): Promise<Record<string, any> | null> => {
@@ -77,14 +123,18 @@ const getRoomResource = async (uniqueIdentifier: string | undefined): Promise<Re
 
 export const lambdaHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   let roomResource;
+  console.log(event);
   try {
-    const config: RoomConfig = event.body ? JSON.parse(event.body) : {};
+    const config = event.body ? JSON.parse(event.body) : {};
     const uniqueIdentifier = config.uniqueName;
     // check whether the roomId/name exists or not
     roomResource = await getRoomResource(uniqueIdentifier);
+    console.log('roomResource: ', roomResource);
     // create the room if it doesn't exist
-    if (!roomResource || roomResource.id === undefined) {
-      roomResource = await createRoom(config);
+    if (!roomResource || roomResource.roomId === undefined) {
+      const domain = await getDomain();
+      roomResource = await constructRoomResource(config, domain);
+      await createRoom(roomResource);
     }
 
     return {
