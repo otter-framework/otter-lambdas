@@ -1,5 +1,6 @@
 import {
   APIGatewayAuthorizerEvent,
+  APIGatewayAuthorizerResult,
   APIGatewayEvent,
   APIGatewayProxyEvent,
   APIGatewayProxyEventV2,
@@ -38,27 +39,74 @@ const getApiKey = async () => {
   return apiKey;
 };
 
-export const lambdaHandler = async (event: APIGatewayProxyEventV2): Promise<APIGatewaySimpleAuthorizerResult> => {
-  if (event.routeKey.includes('/createRoom')) {
-    // createRoom route, authenticate API Key
-    const apiKey = await getApiKey(); // fetch ApiKey from database
-    if (apiKey && event.headers.authorization === apiKey) {
-      return allow;
-    } else {
-      // API Key does not match, deny
-      return deny;
-    }
-  } else {
-    // all other routes, authenticate jwt token
-    const token = event.queryStringParameters?.token;
-    const apiKey = await getApiKey();
-    try {
-      if (token) jwt.verify(token, apiKey);
-    } catch (err) {
-      // if token is not valid, deny
-      return deny;
-    }
+// Helper function to generate an IAM policy
+const generatePolicy = function (principalId: string, effect: string, resource: string) {
+  // Required output:
+  const statementOne = {
+    Action: 'execute-api:Invoke',
+    Effect: effect,
+    Resource: resource,
+  };
+  const policyDocument = {
+    Version: '2012-10-17',
+    Statement: [statementOne],
+  };
+  const authResponse = {
+    principalId,
+    policyDocument,
+  };
+  return authResponse;
+};
 
-    return allow;
+const generateAllow = function (principalId: string, resource: string) {
+  return generatePolicy(principalId, 'Allow', resource);
+};
+
+const generateDeny = function (principalId: string, resource: string) {
+  return generatePolicy(principalId, 'Deny', resource);
+};
+
+export const lambdaHandler = async (
+  event: any,
+): Promise<APIGatewayAuthorizerResult | APIGatewaySimpleAuthorizerResult | undefined> => {
+  const apiKey = await getApiKey(); // fetch ApiKey from database
+
+  if (event.routeKey) {
+    if (event.routeKey.includes('/createRoom')) {
+      // createRoom route, authenticate API Key
+      if (apiKey && event.headers.authorization === apiKey) {
+        return allow;
+      } else {
+        // API Key does not match, deny
+        return deny;
+      }
+    } else {
+      // all other routes, authenticate jwt token
+      const token = event.queryStringParameters?.token;
+      try {
+        if (token) jwt.verify(token, apiKey);
+      } catch (err) {
+        // if token is not valid, deny
+        return deny;
+      }
+      return allow;
+    }
   }
+
+  if (event.methodArn) {
+    // webSocket connections need policy returned
+
+    // Retrieve request parameters from the Lambda function input:
+    const token = event.queryStringParameters?.token;
+
+    try {
+      if (!token) throw new Error();
+      jwt.verify(token, apiKey);
+      return generateAllow('me', event.methodArn);
+    } catch (e) {
+      return generateDeny('Unauthorized', event.methodArn);
+    }
+  }
+
+  return undefined;
 };
