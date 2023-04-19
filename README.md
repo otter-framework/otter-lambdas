@@ -4,7 +4,7 @@ This repo contains source code and supporting files for Otter Lambda functions. 
 
 ## Quick start
 
-Each lambda function has its own dedicated folder and a SAM template file being created already. Making sure the AWS credentials are already setup on your local machine, then navigate to the root folder of the function and run
+Each lambda function has its own dedicated folder and a SAM template file being created already. Make sure the AWS credentials are already setup on your local machine, then navigate to the root folder of the function and run
 
 ```bash
 sam build && sam deploy
