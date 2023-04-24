@@ -16,7 +16,7 @@ Here are some other cool things you can do with SAM:
 
 ## Use the SAM CLI to build and test locally
 
-Build the lambda with the `sam build` command.
+Build the lambda with the `sam build` command. 
 
 ```bash
 sam build
